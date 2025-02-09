@@ -108,7 +108,7 @@ app.post('/register', async (req, res) => {
         msg: err,
       });
     } else {
-      const newUser = new User({name, email, hash, image,publickey});
+      const newUser = new User({name, email, password:hash, image,publickey});
 
       newUser
         .save()
