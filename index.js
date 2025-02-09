@@ -6,6 +6,8 @@ const multer = require("multer");
 const https = require('https');
 const AWS = require('aws-sdk');
 const storager2 = multer.memoryStorage();
+const bcrypt = require("bcryptjs");
+
 const uploadr2 = multer({ storage: storager2 }).single("file")
 // Configure AWS SDK for Cloudflare R2
 const s3 = new AWS.S3({
@@ -41,10 +43,13 @@ app.listen(port, () => {
 const User = require('./models/user');
 const Message = require('./models/message');
 
+app.post("/uploadr3", function (req, res) {
 
+  console.log("test")
+});
 app.post("/uploadr2", function (req, res) {
   
-  
+  console.log("test")
   uploadr2(req, res, async function (err) {
     if (err instanceof multer.MulterError) {
       // A Multer error occurred when uploading.
@@ -97,18 +102,25 @@ app.post("/uploadr2", function (req, res) {
 });
 app.post('/register', async (req, res) => {
   const {name, email, password, image,publickey} = req.body;
+  bcrypt.hash(password, 10, (err, hash) => {
+    if (err) {
+      return res.status(500).send({
+        msg: err,
+      });
+    } else {
+      const newUser = new User({name, email, hash, image,publickey});
 
-  const newUser = new User({name, email, password, image,publickey});
+      newUser
+        .save()
+        .then(() => {
+          res.status(200).json({message: 'User registered succesfully!'});
+        })
+        .catch(error => {
+          console.log('Error creating a user',error);
+          res.status(500).json({message: 'Error registering the user'});
+        });    }
+  });
 
-  newUser
-    .save()
-    .then(() => {
-      res.status(200).json({message: 'User registered succesfully!'});
-    })
-    .catch(error => {
-      console.log('Error creating a user',error);
-      res.status(500).json({message: 'Error registering the user'});
-    });
 });
 
 app.post('/login', async (req, res) => {
@@ -120,15 +132,28 @@ app.post('/login', async (req, res) => {
       return res.status(401).json({message: 'Invalid email'});
     }
 
-    if (user.password !== password) {
-      return res.status(401).json({message: 'Invalid password'});
-    }
+    bcrypt.compare(password, user.password, (bErr, bResult) => {
+      if (bErr) {
+        return res.status(401).json({message: 'Invalid password'});
 
-    const secretKey = crypto.randomBytes(32).toString('hex');
+      }
 
-    const token = jwt.sign({userId: user._id,publickey:user.publickey,name:user.name,email:user.email,image:user.image,friend:user.friends}, secretKey);
+      if (bResult) {
+        {
+        
+
+    const token = jwt.sign({userId: user._id,publickey:user.publickey,name:user.name,email:user.email,image:user.image,friend:user.friends}, process.env.JWT_KEY);
 
     res.status(200).json({token});
+        }
+      }
+
+      return res.status(401).json({message: 'Invalid password'});
+
+    });
+
+
+
   } catch (error) {
     console.log('error loggin in', error);
     res.status(500).json({message: 'Error loggin In'});
