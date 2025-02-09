@@ -42,6 +42,7 @@ app.listen(port, () => {
 
 const User = require('./models/user');
 const Message = require('./models/message');
+const { isLoggedIn } = require('./middleware/users');
 
 app.post("/uploadr3", function (req, res) {
 
@@ -101,9 +102,11 @@ app.post("/uploadr2", function (req, res) {
   });
 });
 app.post('/register', async (req, res) => {
+  console.log("test")
   const {name, email, password, image,publickey} = req.body;
   bcrypt.hash(password, 10, (err, hash) => {
     if (err) {
+      console.log(err)
       return res.status(500).send({
         msg: err,
       });
@@ -144,7 +147,7 @@ app.post('/login', async (req, res) => {
 
     const token = jwt.sign({userId: user._id,publickey:user.publickey,name:user.name,email:user.email,image:user.image,friend:user.friends}, process.env.JWT_KEY);
 
-    res.status(200).json({token});
+    return res.status(200).json({token});
         }
       }
 
@@ -190,12 +193,9 @@ app.get('/users/search', async (req, res) => {
     res.status(500).json({ message: 'Internal server error' });
   }
 });
-app.post('/sendrequest', async (req, res) => {
-  const {senderId, receiverId, message} = req.body;
-
-  console.log(senderId);
-  console.log(receiverId);
-  console.log(message);
+app.post('/sendrequest',isLoggedIn, async (req, res) => {
+  const { receiverId, message} = req.body;
+const senderId=req.userData.userId
 
   const receiver = await User.findById(receiverId);
   if (!receiver) {
@@ -208,9 +208,10 @@ app.post('/sendrequest', async (req, res) => {
   res.status(200).json({message: 'Request sent succesfully'});
 });
 
-app.get('/getrequests/:userId', async (req, res) => {
+app.get('/getrequests',isLoggedIn, async (req, res) => {
   try {
-    const userId = req.params.userId;
+    const userId=req.userData.userId
+
     const user = await User.findById(userId).populate(
       'requests.from',
       'name email image',
@@ -226,9 +227,10 @@ app.get('/getrequests/:userId', async (req, res) => {
     console.log('error', error);
   }
 });
-app.post('/rejectrequest', async (req, res) => {
+app.post('/rejectrequest',isLoggedIn, async (req, res) => {
   try {
-    const { userId, requestId } = req.body;
+    const { requestId } = req.body;
+    const userId=req.userData.userId
 
     const user = await User.findById(userId);
     if (!user) {
@@ -252,9 +254,10 @@ app.post('/rejectrequest', async (req, res) => {
     res.status(500).json({ message: 'Server Error' });
   }
 });
-app.post('/acceptrequest', async (req, res) => {
+app.post('/acceptrequest',isLoggedIn, async (req, res) => {
   try {
-    const { userId, requestId } = req.body;
+    const {  requestId } = req.body;
+    const userId=req.userData.userId
 
     const user = await User.findById(userId);
     if (!user) {
@@ -292,9 +295,9 @@ app.post('/acceptrequest', async (req, res) => {
   }
 });
 
-app.get("/user/:userId", async (req, res) => {
+app.get("/user",isLoggedIn, async (req, res) => {
   try {
-    const userId = req.params.userId;
+    const userId=req.userData.userId
 
     // Validate userId before querying
     if (!mongoose.Types.ObjectId.isValid(userId)) {
@@ -399,9 +402,10 @@ http.listen(3000, () => {
   console.log('Socket.IO running on port 3000');
 });
 
-app.post('/sendMessage', async (req, res) => {
+app.post('/sendMessage',isLoggedIn, async (req, res) => {
   try {
-    const {senderId, receiverId, message,messageSender} = req.body;
+    const { receiverId, message,messageSender} = req.body;
+    const senderId=req.userData.userId
 
     const newMessage = new Message({
       senderId,
@@ -425,6 +429,10 @@ app.post('/sendMessage', async (req, res) => {
     if (senderSocketId) {
       io.to(senderSocketId).emit('newMessage', newMessage);
     } 
+    else{
+      console.log('Sender socket ID not found');
+
+    }
 
     res.status(201).json(newMessage);
   } catch (error) {
@@ -432,9 +440,10 @@ app.post('/sendMessage', async (req, res) => {
   }
 });
 
-app.get('/messages', async (req, res) => {
+app.get('/messages',isLoggedIn, async (req, res) => {
   try {
-    const {senderId, receiverId} = req.query;
+    const { receiverId} = req.query;
+    const senderId=req.userData.userId
 
     const messages = await Message.find({
       $or: [

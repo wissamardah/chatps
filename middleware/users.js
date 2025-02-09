@@ -1,5 +1,4 @@
 const jwt = require('jsonwebtoken');
-const db = require("../lib/db.js");
 const mongoose = require('mongoose');
 mongoose
   .connect('mongodb+srv://wissamardah97:HUf3Kh9dhXVJq8uU@cluster0.egwnq.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0')
