@@ -104,6 +104,8 @@ app.post("/uploadr2", function (req, res) {
 app.post('/register', async (req, res) => {
   console.log("test")
   const {name, email, password, image,publickey} = req.body;
+  const user = await User.findOne({email});
+if(!user){
   bcrypt.hash(password, 10, (err, hash) => {
     if (err) {
       console.log(err)
@@ -123,19 +125,26 @@ app.post('/register', async (req, res) => {
           res.status(500).json({message: 'Error registering the user'});
         });    }
   });
+}
+else
+{
+  res.status(500).json({message: 'اسم المستخدم غير متاح'});
+
+}
+
 
 });
 
 app.post('/login', async (req, res) => {
   try {
-    const {email, password} = req.body;
+    const {email, password,notificationToken} = req.body;
 
     const user = await User.findOne({email});
     if (!user) {
       return res.status(401).json({message: 'Invalid email'});
     }
 
-    bcrypt.compare(password, user.password, (bErr, bResult) => {
+    bcrypt.compare(password, user.password, async (bErr, bResult) => {
       if (bErr) {
         return res.status(401).json({message: 'Invalid password'});
 
@@ -146,6 +155,7 @@ app.post('/login', async (req, res) => {
         
 
     const token = jwt.sign({userId: user._id,publickey:user.publickey,name:user.name,email:user.email,image:user.image,friend:user.friends}, process.env.JWT_KEY);
+    const result = await User.findByIdAndUpdate(user.id, { notificationToken: notificationToken }, { new: true });
 
     return res.status(200).json({token});
         }
@@ -160,6 +170,116 @@ app.post('/login', async (req, res) => {
   } catch (error) {
     console.log('error loggin in', error);
     res.status(500).json({message: 'Error loggin In'});
+  }
+});
+app.get('/userData',isLoggedIn, async (req, res) => {
+  try {
+    const userId=req.userData.userId
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(401).json({message: 'Invalid email'});
+    }
+    return res.status(200).json(user);
+
+
+
+
+  } catch (error) {
+    console.log('error UserData in', error);
+    res.status(500).json({message: 'Server Error'});
+  }
+});
+
+app.post('/change_password',isLoggedIn, async (req, res) => {
+  try {
+    const {currentPassword, newPassword} = req.body;
+    const userId=req.userData.userId
+
+    const user = await User.findById(userId);
+  
+
+    bcrypt.compare(currentPassword, user.password, async (bErr, bResult) => {
+      if (bErr) {
+        return res.status(401).json({message: 'Invalid password'});
+
+      }
+
+      if (bResult) {
+        {
+        
+          bcrypt.hash(newPassword, 10, async (err, hash) => {
+            if (err) {
+              console.log(err)
+              return res.status(500).send({
+                msg: err,
+              });
+            } else {
+
+              const result = await User.findByIdAndUpdate(userId, { password: hash }, { new: true });
+
+              console.log(result)
+             return res.status(200).json({message: 'Password changed succesfully!'});
+
+
+
+
+
+              }
+          });
+        }
+      }
+
+
+    });
+
+
+
+  } catch (error) {
+    console.log('error change password in', error);
+    res.status(500).json({message: 'Server Error'});
+  }
+});
+
+
+app.post('/change_name',isLoggedIn, async (req, res) => {
+  try {
+    const {newName} = req.body;
+    const userId=req.userData.userId
+
+  
+    const result = await User.findByIdAndUpdate(userId, { name: newName }, { new: true });
+
+    console.log(result)
+   return res.status(200).json({message: 'Name changed succesfully!'});
+
+
+
+
+  } catch (error) {
+    console.log('error Change password in', error);
+    res.status(500).json({message: 'Server Error'});
+  }
+});
+
+
+app.post('/change_image',isLoggedIn, async (req, res) => {
+  try {
+    const {newImage} = req.body;
+    const userId=req.userData.userId
+
+  
+    const result = await User.findByIdAndUpdate(userId, { image: newImage }, { new: true });
+
+    console.log(result)
+   return res.status(200).json({message: 'Image changed succesfully!'});
+
+
+
+
+  } catch (error) {
+    console.log('error Change Image in', error);
+    res.status(500).json({message: 'Server Error'});
   }
 });
 
