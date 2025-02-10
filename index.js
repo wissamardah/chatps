@@ -172,6 +172,26 @@ app.post('/login', async (req, res) => {
     res.status(500).json({message: 'Error loggin In'});
   }
 });
+
+app.get('/logout',isLoggedIn, async (req, res) => {
+  try {
+    const userId=req.userData.userId
+
+  
+    const result = await User.findByIdAndUpdate(userId, { notificationToken: "" }, { new: true });
+
+    console.log(result)
+   return res.status(200).json({message: 'Logged Out'});
+
+
+
+
+  } catch (error) {
+    console.log('error logout in', error);
+    res.status(500).json({message: 'Server Error'});
+  }
+});
+
 app.get('/userData',isLoggedIn, async (req, res) => {
   try {
     const userId=req.userData.userId
