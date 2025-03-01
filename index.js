@@ -9,6 +9,36 @@ const storager2 = multer.memoryStorage();
 const bcrypt = require("bcryptjs");
 
 const uploadr2 = multer({ storage: storager2 }).single("file")
+const { Expo } = require('expo-server-sdk');
+
+const expo = new Expo();
+
+async function sendPushNotification(expoPushToken, title, body, data = {}) {
+    if (!Expo.isExpoPushToken(expoPushToken)) {
+        console.error(`Invalid Expo push token: ${expoPushToken}`);
+        return;
+    }
+
+    const messages = [
+        {
+            to: expoPushToken,
+            sound: 'default',
+            title,
+            body,
+            data,
+        },
+    ];
+
+    try {
+        const chunks = expo.chunkPushNotifications(messages);
+        for (const chunk of chunks) {
+            const ticketChunk = await expo.sendPushNotificationsAsync(chunk);
+            console.log(ticketChunk);
+        }
+    } catch (error) {
+        console.error('Error sending push notification:', error);
+    }
+}
 // Configure AWS SDK for Cloudflare R2
 const s3 = new AWS.S3({
   endpoint: new AWS.Endpoint('https://339e91c277eee714bbecefdc897961c9.r2.cloudflarestorage.com'), // Replace <ACCOUNT_ID> with your Cloudflare Account ID
@@ -278,6 +308,25 @@ app.post('/change_name',isLoggedIn, async (req, res) => {
 
   } catch (error) {
     console.log('error Change password in', error);
+    res.status(500).json({message: 'Server Error'});
+  }
+});
+app.post('/update_notificationToken',isLoggedIn, async (req, res) => {
+  try {
+    const {notificationToken} = req.body;
+    const userId=req.userData.userId
+
+  
+    const result = await User.findByIdAndUpdate(userId, { notificationToken: notificationToken }, { new: true });
+
+    console.log(result)
+   return res.status(200).json({message: 'notificationToken changed succesfully!'});
+
+
+
+
+  } catch (error) {
+    console.log('error Change notificationToken in', error);
     res.status(500).json({message: 'Server Error'});
   }
 });
@@ -558,7 +607,14 @@ app.post('/sendMessage',isLoggedIn, async (req, res) => {
 
     const receiverSocketId = userSocketMap[receiverId];
     const senderSocketId = userSocketMap[senderId];
-
+    const user = await User.findById(receiverId)
+    const user1 = await User.findById(senderId)
+    if(user){
+      sendPushNotification(user.notificationToken,"رسالة جديدة","لديك رسالة جديدة , افتح التطبيق للرد")
+    }
+    if(user1){
+      sendPushNotification(user1.notificationToken,"رسالة جديدة","لديك رسالة جديدة , افتح التطبيق للرد")
+    }
     if (receiverSocketId) {
       console.log('emitting recieveMessage event to the reciver', receiverId);
       io.to(receiverSocketId).emit('newMessage', newMessage);
@@ -575,6 +631,47 @@ app.post('/sendMessage',isLoggedIn, async (req, res) => {
     }
 
     res.status(201).json(newMessage);
+  } catch (error) {
+    console.log('ERROR', error);
+  }
+});
+app.post('/deleteMessage',isLoggedIn, async (req, res) => {
+  try {
+    const { receiverId, messageId} = req.body;
+    const senderId=req.userData.userId
+
+    const receiverSocketId = userSocketMap[receiverId];
+    const senderSocketId = userSocketMap[senderId];
+
+    console.log(messageId)
+    const result = await Message.findByIdAndDelete(messageId);
+
+    console.log(result)
+    if (receiverSocketId) {
+      console.log('emitting deleteMessage event to the reciver', receiverId);
+      io.to(receiverSocketId).emit('deleteMessage', {
+        messageId
+      });
+    } else{
+      console.log('Receiver socket ID not found');
+    }
+    
+    if (senderSocketId) {
+      console.log('emitting deleteMessage event to the sender', senderSocketId);
+
+      io.to(senderSocketId).emit('deleteMessage',  {
+        messageId
+      });
+    } 
+    else{
+      console.log('Sender socket ID not found');
+
+    }
+
+    res.status(201).json({
+      status:"success",
+      msg:"Deleted"
+    });
   } catch (error) {
     console.log('ERROR', error);
   }
